@@ -12,7 +12,8 @@ class IKChain(Chain):
     """
     @classmethod
     def from_poppy_creature(cls, poppy, motors, passiv, tip,
-                            reversed_motors=[]):
+                            reversed_motors=[],
+                            name='chain'):
         """ Creates an kinematic chain from motors of a Poppy Creature.
 
             :param poppy: PoppyCreature used
@@ -20,6 +21,7 @@ class IKChain(Chain):
             :param list passiv: list of motors which are passiv in the chain (they will not move)
             :param list tip: [x, y, z] translation of the tip of the chain (in meters)
             :param list reversed_motors: list of motors that should be manually reversed (due to a problem in the URDF?)
+            :param string name: The name of the chain
 
         """
         chain_elements = get_chain_from_joints(poppy.urdf_file,
@@ -30,7 +32,8 @@ class IKChain(Chain):
         chain = cls.from_urdf_file(poppy.urdf_file,
                                    base_elements=chain_elements,
                                    last_link_vector=tip,
-                                   active_links_mask=activ)
+                                   active_links_mask=activ,
+                                   name=name)
 
         chain.motors = [getattr(poppy, l.name) for l in chain.links[1:-1]]
 
@@ -73,6 +76,9 @@ class IKChain(Chain):
         M = eye(4)
         M[:3, 3] = position
         self._goto(M, duration, wait, accurate)
+
+    def __repr__(self):
+        return 'Kinematic chain "{}"'.format(self.name)
 
     def _goto(self, pose, duration, wait, accurate):
         """ Goes to a given cartesian pose.
@@ -120,3 +126,10 @@ class IKChain(Chain):
 
         return [(j * (1 if m.direct else -1)) - m.offset
                 for j, m in zip(joints, self.motors)]
+
+    def register(self, robot):
+        if hasattr(robot, self.name):
+            raise AttributeError('Robot has already an attribute named {}'.format(self.name))
+
+        setattr(robot, self.name, self)
+        robot.kinematic_chains.append(self)
